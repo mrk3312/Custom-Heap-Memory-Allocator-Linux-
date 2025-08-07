@@ -1,4 +1,5 @@
-main.o
-malloc
-malloc.o
+main.c
+main
+libmem_allocator.so
+mem_allocator.o
 /.vscode
