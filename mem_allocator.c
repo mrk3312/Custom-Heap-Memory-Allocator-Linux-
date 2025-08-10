@@ -113,21 +113,22 @@ void *my_malloc(size_t size)
     {
         if (block->size > size * 2)
         {
-            size_t total_size = block->size + sizeof(s_block);
-            __uint8_t *ptr = (__uint8_t *)(block) + total_size;
+            __uint8_t *ptr = (__uint8_t *)(block + 1) + size;
 
             t_block n_block = (t_block)ptr;
-            n_block->size = size;
+            n_block->size = block->size - sizeof(s_block) - size;
             n_block->next = block->next;
-            n_block->free = 0;
+            n_block->free = 1;
 
-            block->size -= (size + sizeof(s_block));
+            block->size = size;
             block->next = n_block;
-            block->free = 1;
-            return (void*)(n_block + 1);
+            block->free = 0;
+            return (void*)(block + 1);
         }
+        block->free = 0;
         return (void*)(block + 1);
     }
+
 
     block = request_block(last_block, size);
     return (void*)(block + 1);
@@ -173,7 +174,7 @@ void *my_realloc(void *ptr, size_t size)
     size = ALIGN8(size);
     t_block block = (t_block)ptr - 1;
     t_block last_block = find_last_block();
-
+    
     if (!block->next)
     {
         block = resize_block(block, size);
@@ -185,6 +186,34 @@ void *my_realloc(void *ptr, size_t size)
         block = merge_blocks(block);
         return (void *)(block + 1);
     }
+    t_block f_block = find_free_block(block->size + size);
+
+    if (f_block)
+    {
+        if (f_block->size > ((block->size + size) * 2))
+        {
+            __uint8_t *ptr = (__uint8_t *)(f_block + 1) + (block->size + size);
+            t_block new_block = (t_block)ptr;
+            int new_size = block->size + size;
+            new_block->size = f_block->size - new_size - sizeof(s_block);
+            new_block->next = f_block->next;
+            new_block->free = 1; 
+
+            memcpy((void *)(new_block + 1), (void *)(block + 1), block->size);
+            block->free = 1;
+
+            f_block->size = new_size;
+            f_block->next = new_block;
+            f_block->free = 0;
+            return (void *)(f_block + 1);
+        }
+
+        memcpy((void *)(f_block + 1), (void *)(block + 1), block->size);
+        f_block->free = 0;
+        block->free = 1;
+        return (void *)(f_block + 1);
+    }
+
     t_block block_fragmented = find_free_blocks_fragmented(size);
     if (block_fragmented)
     {       
